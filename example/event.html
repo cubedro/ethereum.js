@@ -4,8 +4,8 @@
     <script type="text/javascript" src="js/bignumber.js/bignumber.min.js"></script>
     <script type="text/javascript" src="../dist/ethereum.js"></script>
     <script type="text/javascript">
-        var web3 = require('web3');
-        web3.setProvider(new web3.providers.HttpSyncProvider('http://localhost:8080'));
+        var web3 = require('ethereum.js');
+        web3.setProvider(new web3.providers.HttpProvider('http://localhost:8080'));
 
         var desc = [{
             "type":"event",
