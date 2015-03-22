@@ -125,7 +125,7 @@ var dynamicBytesLength = function (type) {
 
 var outputTypes = types.outputTypes();
 
-/** 
+/**
  * Formats output bytes back to param list
  *
  * @method formatOutput
@@ -331,7 +331,7 @@ var formatInputBool = function (value) {
  * @returns {String} byte representation of real
  */
 var formatInputReal = function (value) {
-    return formatInputInt(new BigNumber(value).times(new BigNumber(2).pow(128))); 
+    return formatInputInt(new BigNumber(value).times(new BigNumber(2).pow(128)));
 };
 
 /**
@@ -384,7 +384,7 @@ var formatOutputUInt = function (value) {
  * @returns {BigNumber} input bytes formatted to real
  */
 var formatOutputReal = function (value) {
-    return formatOutputInt(value).dividedBy(new BigNumber(2).pow(128)); 
+    return formatOutputInt(value).dividedBy(new BigNumber(2).pow(128));
 };
 
 /**
@@ -395,7 +395,7 @@ var formatOutputReal = function (value) {
  * @returns {BigNumber} input bytes formatted to ureal
  */
 var formatOutputUReal = function (value) {
-    return formatOutputUInt(value).dividedBy(new BigNumber(2).pow(128)); 
+    return formatOutputUInt(value).dividedBy(new BigNumber(2).pow(128));
 };
 
 /**
@@ -500,13 +500,13 @@ var namedType = function (name) {
 };
 
 /// Setups input formatters for solidity types
-/// @returns an array of input formatters 
+/// @returns an array of input formatters
 var inputTypes = function () {
-    
+
     return [
         { type: prefixedType('uint'), format: f.formatInputInt },
         { type: prefixedType('int'), format: f.formatInputInt },
-        { type: prefixedType('bytes'), format: f.formatInputString }, 
+        { type: prefixedType('bytes'), format: f.formatInputString },
         { type: prefixedType('real'), format: f.formatInputReal },
         { type: prefixedType('ureal'), format: f.formatInputReal },
         { type: namedType('address'), format: f.formatInputInt },
@@ -567,13 +567,13 @@ exports.XMLHttpRequest = window.XMLHttpRequest;
 
 /**
  * Utils
- * 
+ *
  * @module utils
  */
 
 /**
  * Utility functions
- * 
+ *
  * @class [utils] config
  * @constructor
  */
@@ -581,26 +581,26 @@ exports.XMLHttpRequest = window.XMLHttpRequest;
 /// required to define ETH_BIGNUMBER_ROUNDING_MODE
 var BigNumber = require('bignumber.js');
 
-var ETH_UNITS = [ 
-    'wei', 
-    'Kwei', 
-    'Mwei', 
-    'Gwei', 
-    'szabo', 
-    'finney', 
-    'ether', 
-    'grand', 
-    'Mether', 
-    'Gether', 
-    'Tether', 
-    'Pether', 
-    'Eether', 
-    'Zether', 
-    'Yether', 
-    'Nether', 
-    'Dether', 
-    'Vether', 
-    'Uether' 
+var ETH_UNITS = [
+    'wei',
+    'Kwei',
+    'Mwei',
+    'Gwei',
+    'szabo',
+    'finney',
+    'ether',
+    'grand',
+    'Mether',
+    'Gether',
+    'Tether',
+    'Pether',
+    'Eether',
+    'Zether',
+    'Yether',
+    'Nether',
+    'Dether',
+    'Vether',
+    'Uether'
 ];
 
 module.exports = {
@@ -638,13 +638,13 @@ module.exports = {
 
 /**
  * Utils
- * 
+ *
  * @module utils
  */
 
 /**
  * Utility functions
- * 
+ *
  * @class [utils] utils
  * @constructor
  */
@@ -687,7 +687,7 @@ var findIndex = function (array, callback) {
     return end ? i - 1 : -1;
 };
 
-/** 
+/**
  * Should be called to get sting from it's hex representation
  *
  * @method toAscii
@@ -712,9 +712,9 @@ var toAscii = function(hex) {
 
     return str;
 };
-    
+
 /**
- * Shold be called to get hex representation (prefixed by 0x) of ascii string 
+ * Shold be called to get hex representation (prefixed by 0x) of ascii string
  *
  * @method fromAscii
  * @param {String} string
@@ -731,7 +731,7 @@ var toHexNative = function(str) {
 };
 
 /**
- * Shold be called to get hex representation (prefixed by 0x) of ascii string 
+ * Shold be called to get hex representation (prefixed by 0x) of ascii string
  *
  * @method fromAscii
  * @param {String} string
@@ -748,13 +748,13 @@ var fromAscii = function(str, pad) {
 
 /**
  * Should be called to get display name of contract function
- * 
+ *
  * @method extractDisplayName
  * @param {String} name of function/event
  * @returns {String} display name for function/event eg. multiply(uint256) -> multiply
  */
 var extractDisplayName = function (name) {
-    var length = name.indexOf('('); 
+    var length = name.indexOf('(');
     return length !== -1 ? name.substr(0, length) : name;
 };
 
@@ -774,8 +774,8 @@ var extractTypeName = function (name) {
  */
 var filterFunctions = function (json) {
     return json.filter(function (current) {
-        return current.type === 'function'; 
-    }); 
+        return current.type === 'function';
+    });
 };
 
 /**
@@ -888,7 +888,7 @@ var getValueOfUnit = function (unit) {
 var fromWei = function(number, unit) {
     var returnValue = toBigNumber(number).dividedBy(getValueOfUnit(unit));
 
-    return isBigNumber(number) ? returnValue : returnValue.toString(10); 
+    return isBigNumber(number) ? returnValue : returnValue.toString(10);
 };
 
 /**
@@ -914,7 +914,7 @@ var fromWei = function(number, unit) {
 var toWei = function(number, unit) {
     var returnValue = toBigNumber(number).times(getValueOfUnit(unit));
 
-    return isBigNumber(number) ? returnValue : returnValue.toString(10); 
+    return isBigNumber(number) ? returnValue : returnValue.toString(10);
 };
 
 /**
@@ -933,7 +933,7 @@ var toBigNumber = function(number) {
     if (isString(number) && (number.indexOf('0x') === 0 || number.indexOf('-0x') === 0)) {
         return new BigNumber(number.replace('0x',''), 16);
     }
-   
+
     return new BigNumber(number.toString(10), 10);
 };
 
@@ -973,7 +973,7 @@ var isAddress = function(address) {
  *
  * @method isBigNumber
  * @param {Object}
- * @return {Boolean} 
+ * @return {Boolean}
  */
 var isBigNumber = function (object) {
     return object instanceof BigNumber ||
@@ -982,7 +982,7 @@ var isBigNumber = function (object) {
 
 /**
  * Returns true if object is string, otherwise false
- * 
+ *
  * @method isString
  * @param {Object}
  * @return {Boolean}
@@ -1033,12 +1033,12 @@ var isBoolean = function (object) {
  * @return {Boolean}
  */
 var isArray = function (object) {
-    return object instanceof Array; 
+    return object instanceof Array;
 };
 
 /**
  * Returns true if given string is valid json object
- * 
+ *
  * @method isJson
  * @param {String}
  * @return {Boolean}
@@ -1145,10 +1145,10 @@ var setupMethods = function (obj, methods) {
     methods.forEach(function (method) {
         var func = function () {
             var args = Array.prototype.slice.call(arguments);
-            var call = method.getCall(args); 
+            var call = method.getCall(args);
             var callback = method.extractCallback(args);
             method.validateArgs(args);
-            
+
             var payload = {
                 method: call,
                 params: method.formatInput(args)
@@ -1204,7 +1204,7 @@ var setupProperties = function (obj, properties) {
             if(!obj[objectProperties[0]])
                 obj[objectProperties[0]] = {};
 
-            Object.defineProperty(obj[objectProperties[0]], objectProperties[1], proto);        
+            Object.defineProperty(obj[objectProperties[0]], objectProperties[1], proto);
         } else
             Object.defineProperty(obj, property.name, proto);
 
@@ -1214,9 +1214,9 @@ var setupProperties = function (obj, properties) {
 /*jshint maxparams:4 */
 var startPolling = function (method, id, callback, uninstall) {
     web3.manager.startPolling({
-        method: method, 
+        method: method,
         params: [id]
-    }, id,  callback, uninstall); 
+    }, id,  callback, uninstall);
 };
 /*jshint maxparams:3 */
 
@@ -1225,12 +1225,12 @@ var stopPolling = function (id) {
 };
 
 var ethWatch = {
-    startPolling: startPolling.bind(null, 'eth_getFilterChanges'), 
+    startPolling: startPolling.bind(null, 'eth_getFilterChanges'),
     stopPolling: stopPolling
 };
 
 var shhWatch = {
-    startPolling: startPolling.bind(null, 'shh_getFilterChanges'), 
+    startPolling: startPolling.bind(null, 'shh_getFilterChanges'),
     stopPolling: stopPolling
 };
 
@@ -1247,11 +1247,11 @@ var web3 = {
     setProvider: function (provider) {
         web3.manager.setProvider(provider);
     },
-    
+
     /// Should be called to reset state of web3 object
     /// Resets everything except manager
     reset: function () {
-        web3.manager.reset(); 
+        web3.manager.reset();
     },
 
     /// @returns hex string of the input
@@ -1278,7 +1278,7 @@ var web3 = {
 
     // provide network information
     net: {
-        // peerCount: 
+        // peerCount:
     },
 
 
@@ -1385,7 +1385,7 @@ module.exports = web3;
  * @date 2014
  */
 
-var web3 = require('../web3'); 
+var web3 = require('../web3');
 var abi = require('../solidity/abi');
 var utils = require('../utils/utils');
 var eventImpl = require('./event');
@@ -1401,7 +1401,7 @@ var exportNatspecGlobals = function (vars) {
 };
 
 var addFunctionRelatedPropertiesToContract = function (contract) {
-    
+
     contract.call = function (options) {
         contract._isTransaction = false;
         contract._options = options;
@@ -1451,16 +1451,16 @@ var addFunctionsToContract = function (contract, desc, address) {
             var options = contract._options || {};
             options.to = address;
             options.data = sign + parsed;
-            
+
             var isTransaction = contract._isTransaction === true || (contract._isTransaction !== false && !method.constant);
             var collapse = options.collapse !== false;
-            
+
             // reset
             contract._options = {};
             contract._isTransaction = null;
 
             if (isTransaction) {
-                
+
                 exportNatspecGlobals({
                     abi: desc,
                     address: address,
@@ -1472,7 +1472,7 @@ var addFunctionsToContract = function (contract, desc, address) {
                 web3.eth.sendTransaction(options);
                 return;
             }
-            
+
             var output = web3.eth.call(options);
             var ret = outputParser[displayName][typeName](output);
             if (collapse)
@@ -1500,7 +1500,7 @@ var addEventRelatedPropertiesToContract = function (contract, desc, address) {
         var parser = eventImpl.outputParser(matchingEvent);
         return parser(data);
     };
-    
+
     Object.defineProperty(contract, 'topics', {
         get: function() {
             return utils.filterEvents(desc).map(function (e) {
@@ -1526,7 +1526,7 @@ var addEventsToContract = function (contract, desc, address) {
             };
             return web3.eth.filter(o, undefined, undefined, outputFormatter);
         };
-        
+
         // this property should be used by eth.filter to check if object is an event
         impl._isEvent = true;
 
@@ -1546,7 +1546,7 @@ var addEventsToContract = function (contract, desc, address) {
 /**
  * This method should be called when we want to call / transact some solidity method from javascript
  * it returns an object which has same methods available as solidity contract description
- * usage example: 
+ * usage example:
  *
  * var abi = [{
  *      name: 'myMethod',
@@ -1681,7 +1681,7 @@ module.exports = {
     You should have received a copy of the GNU Lesser General Public License
     along with ethereum.js.  If not, see <http://www.gnu.org/licenses/>.
 */
-/** 
+/**
  * @file errors.js
  * @author Marek Kotewicz <marek@ethdev.com>
  * @date 2015
@@ -1720,7 +1720,7 @@ module.exports = {
 
 /**
  * Web3
- * 
+ *
  * @module web3
  */
 
@@ -1772,15 +1772,15 @@ var uncleCountCall = function (args) {
 /// @returns an array of objects describing web3.eth api methods
 
 var getBalance = new Method({
-    name: 'getBalance', 
-    call: 'eth_getBalance', 
+    name: 'getBalance',
+    call: 'eth_getBalance',
     params: 2,
     outputFormatter: formatters.inputNumberFormatter
 });
 
 var getStorageAt = new Method({
-    name: 'getStorageAt', 
-    call: 'eth_getStorageAt', 
+    name: 'getStorageAt',
+    call: 'eth_getStorageAt',
     params: 3
 });
 
@@ -1791,7 +1791,7 @@ var getCode = new Method({
 });
 
 var getBlock = new Method({
-    name: 'getBlock', 
+    name: 'getBlock',
     call: blockCall,
     params: 1,
     outputFormatter: formatters.outputBlockFormatter,
@@ -1817,7 +1817,7 @@ var getBlockTransactounCount = new Method({
     call: getBlockTransactionCountCall,
     params: 1,
     outputFormatter: utils.toDecimal,
-    inputFormatter: utils.toHex 
+    inputFormatter: utils.toHex
 });
 
 var getBlockUncleCount = new Method({
@@ -1854,7 +1854,7 @@ var sendTransaction = new Method({
     name: 'sendTransaction',
     call: 'eth_sendTransaction',
     params: 1,
-    inputFormatter: formatters.inputTransactionFormatter 
+    inputFormatter: formatters.inputTransactionFormatter
 });
 
 var call = new Method({
@@ -1971,7 +1971,7 @@ var inputWithName = function (inputs, name) {
     var index = utils.findIndex(inputs, function (input) {
         return input.name === name;
     });
-    
+
     if (index === -1) {
         console.error('indexed param with name ' + name + ' not found');
         return undefined;
@@ -1988,14 +1988,14 @@ var indexedParamsToTopics = function (event, indexed) {
         if (value instanceof Array) {
             return value.map(function (v) {
                 return abi.formatInput(inputs, [v]);
-            }); 
+            });
         }
         return abi.formatInput(inputs, [value]);
     });
 };
 
 var inputParser = function (address, sign, event) {
-    
+
     // valid options are 'earliest', 'latest', 'offset' and 'max', as defined for 'eth.filter'
     return function (indexed, options) {
         var o = options || {};
@@ -2021,11 +2021,11 @@ var getArgumentsObject = function (inputs, indexed, notIndexed) {
 
         acc[current.name] = value;
         return acc;
-    }, {}); 
+    }, {});
 };
- 
+
 var outputParser = function (event) {
-    
+
     return function (output) {
         var result = {
             event: utils.extractDisplayName(event.name),
@@ -2038,7 +2038,7 @@ var outputParser = function (event) {
         if (!output.topics) {
             return result;
         }
-       
+
         var indexedOutputs = filterInputs(event.inputs, true);
         var indexedData = "0x" + output.topics.slice(1, output.topics.length).map(function (topics) { return topics.slice(2); }).join("");
         var indexedRes = abi.formatOutput(indexedOutputs, indexedData);
@@ -2054,7 +2054,7 @@ var outputParser = function (event) {
 
 var getMatchingEvent = function (events, payload) {
     for (var i = 0; i < events.length; i++) {
-        var sign = signature.eventSignatureFromAscii(events[i].name); 
+        var sign = signature.eventSignatureFromAscii(events[i].name);
         if (sign === payload.topics[0]) {
             return events[i];
         }
@@ -2102,9 +2102,9 @@ var utils = require('../utils/utils');
 /// Should be called to check if filter implementation is valid
 /// @returns true if it is, otherwise false
 var implementationIsValid = function (i) {
-    return !!i && 
-        typeof i.newFilter === 'function' && 
-        typeof i.getLogs === 'function' && 
+    return !!i &&
+        typeof i.newFilter === 'function' &&
+        typeof i.getLogs === 'function' &&
         typeof i.uninstallFilter === 'function' &&
         typeof i.startPolling === 'function' &&
         typeof i.stopPolling === 'function';
@@ -2118,7 +2118,7 @@ var getOptions = function (options) {
 
     if (typeof options === 'string') {
         return options;
-    } 
+    }
 
     options = options || {};
 
@@ -2171,7 +2171,7 @@ var getOptions = function (options) {
 /// it's using inner polling mechanism and is notified about changes
 /// @param options are filter options
 /// @param implementation, an abstract polling implementation
-/// @param formatter (optional), callback function which formats output before 'real' callback 
+/// @param formatter (optional), callback function which formats output before 'real' callback
 var filter = function(options, implementation, formatter) {
     if (!implementationIsValid(implementation)) {
         console.error('filter implemenation is invalid');
@@ -2211,7 +2211,7 @@ var filter = function(options, implementation, formatter) {
                 return formatter ? formatter(message) : message;
             }) : results;
     };
-    
+
     return {
         watch: watch,
         stopWatching: stopWatching,
@@ -2265,7 +2265,7 @@ module.exports = filter;
     You should have received a copy of the GNU Lesser General Public License
     along with ethereum.js.  If not, see <http://www.gnu.org/licenses/>.
 */
-/** 
+/**
  * @file formatters.js
  * @author Marek Kotewicz <marek@ethdev.com>
  * @author Fabian Vogelsteller <fabian@ethdev.com>
@@ -2311,7 +2311,7 @@ var inputTransactionFormatter = function (args){
 
 /**
  * Formats the output of a transaction to its proper values
- * 
+ *
  * @method outputTransactionFormatter
  * @param {Object} transaction
  * @returns {Object} transaction
@@ -2359,7 +2359,7 @@ var inputUncleFormatter = function (args) {
  * Formats the output of a block to its proper values
  *
  * @method outputBlockFormatter
- * @param {Object} block object 
+ * @param {Object} block object
  * @returns {Object} block object
 */
 var outputBlockFormatter = function(block) {
@@ -2387,7 +2387,7 @@ var outputBlockFormatter = function(block) {
 
 /**
  * Formats the output of a log
- * 
+ *
  * @method outputLogFormatter
  * @param {Object} log object
  * @returns {Object} log
@@ -2578,7 +2578,7 @@ Jsonrpc.prototype.toPayload = function (method, params) {
         method: method,
         params: params || [],
         id: this.messageId++
-    }; 
+    };
 };
 
 /**
@@ -2586,7 +2586,7 @@ Jsonrpc.prototype.toPayload = function (method, params) {
  *
  * @method isValidResponse
  * @param {Object}
- * @returns {Boolean} true if response is valid, otherwise false 
+ * @returns {Boolean} true if response is valid, otherwise false
  */
 Jsonrpc.prototype.isValidResponse = function (response) {
     return !!response &&
@@ -2607,7 +2607,7 @@ Jsonrpc.prototype.toBatchPayload = function (messages) {
     var self = this;
     return messages.map(function (message) {
         return self.toPayload(message.method, message.params);
-    }); 
+    });
 };
 
 module.exports = Jsonrpc;
@@ -2674,7 +2674,7 @@ Method.prototype.extractCallback = function (args) {
 
 /**
  * Should be called to check if the number of arguments is correct
- * 
+ *
  * @method validateArgs
  * @param {Array} arguments
  * @throws {Error} if it is not
@@ -2687,7 +2687,7 @@ Method.prototype.validateArgs = function (args) {
 
 /**
  * Should be called to format input args of method
- * 
+ *
  * @method formatInput
  * @param {Array}
  * @return {Array}
@@ -2709,7 +2709,7 @@ Method.prototype.formatOutput = function (result) {
 
 /**
  * Should attach function to method
- * 
+ *
  * @method attachToObject
  * @param {Object}
  * @param {Function}
@@ -2720,7 +2720,7 @@ Method.prototype.attachToObject = function (obj, func) {
         obj[name[0]] = obj[name[0]] || {};
         obj[name[0]][name[1]] = func;
     } else {
-        obj[name[0]] = func; 
+        obj[name[0]] = func;
     }
 };
 
@@ -2822,7 +2822,7 @@ module.exports = QtSyncProvider;
     You should have received a copy of the GNU Lesser General Public License
     along with ethereum.js.  If not, see <http://www.gnu.org/licenses/>.
 */
-/** 
+/**
  * @file requestmanager.js
  * @author Jeffrey Wilcke <jeff@ethdev.com>
  * @author Marek Kotewicz <marek@ethdev.com>
@@ -2891,7 +2891,7 @@ RequestManager.prototype.sendAsync = function (data, callback) {
         if (err) {
             return callback(err);
         }
-        
+
         if (!self.jsonrpc.isValidResponse(result)) {
             return callback(errors.InvalidResponse);
         }
@@ -2950,7 +2950,7 @@ RequestManager.prototype.stopPolling = function (pollId) {
  */
 RequestManager.prototype.reset = function () {
     this.polls.forEach(function (poll) {
-        poll.uninstall(poll.id); 
+        poll.uninstall(poll.id);
     });
     this.polls = [];
 
@@ -2984,7 +2984,7 @@ RequestManager.prototype.poll = function () {
         if (error) {
             return;
         }
-            
+
         if (!utils.isArray(results)) {
             return console.error(errors.InvalidResponse);
         }
@@ -3036,8 +3036,8 @@ var Method = require('./method');
 var formatters = require('./formatters');
 
 var post = new Method({
-    name: 'post', 
-    call: 'shh_post', 
+    name: 'post',
+    call: 'shh_post',
     params: 1,
     inputFormatter: formatters.inputPostFormatter
 });
@@ -3102,7 +3102,7 @@ module.exports = {
  * @date 2015
  */
 
-var web3 = require('../web3'); 
+var web3 = require('../web3');
 var c = require('../utils/config');
 
 /// @param function name for which we want to get signature
