@@ -540,7 +540,13 @@ module.exports = {
 },{"./formatters":2}],4:[function(require,module,exports){
 'use strict';
 
-exports.XMLHttpRequest = window.XMLHttpRequest;
+// go env doesn't have and need XMLHttpRequest
+if (typeof XMLHttpRequest === 'undefined') {
+    exports.XMLHttpRequest = {};
+} else {
+    exports.XMLHttpRequest = XMLHttpRequest; // jshint ignore:line
+}
+
 
 },{}],5:[function(require,module,exports){
 /*
@@ -828,13 +834,13 @@ var fromDecimal = function (value) {
 var toHex = function (val) {
     /*jshint maxcomplexity:7 */
 
-    if(isBoolean(val))
-        return val;
+    if (isBoolean(val))
+        return fromDecimal(+val);
 
-    if(isBigNumber(val))
+    if (isBigNumber(val))
         return fromDecimal(val);
 
-    if(isObject(val))
+    if (isObject(val))
         return fromAscii(JSON.stringify(val));
 
     // if its a negative number, pass it through fromDecimal
@@ -1045,11 +1051,10 @@ var isArray = function (object) {
  */
 var isJson = function (str) {
     try {
-        JSON.parse(str);
+        return !!JSON.parse(str);
     } catch (e) {
         return false;
     }
-    return true;
 };
 
 module.exports = {
@@ -1080,8 +1085,9 @@ module.exports = {
 
 },{"bignumber.js":"bignumber.js"}],7:[function(require,module,exports){
 module.exports={
-    "version": "0.1.3"
+    "version": "0.2.1"
 }
+
 },{}],8:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
@@ -1115,54 +1121,49 @@ var eth = require('./web3/eth');
 var db = require('./web3/db');
 var shh = require('./web3/shh');
 var watches = require('./web3/watches');
-var filter = require('./web3/filter');
+var Filter = require('./web3/filter');
 var utils = require('./utils/utils');
-var formatters = require('./solidity/formatters');
+var formatters = require('./web3/formatters');
 var RequestManager = require('./web3/requestmanager');
 var c = require('./utils/config');
 var Method = require('./web3/method');
+var Property = require('./web3/property');
 
-/// @returns an array of objects describing web3 api methods
-var web3Methods = function () {
-    var sha3 = new Method({
+var web3Methods = [
+    new Method({
         name: 'sha3',
         call: 'web3_sha3',
-        params: 1,
-        inputFormatter: utils.toHex
-    });
-
-    return [sha3];
-};
+        params: 1
+    })
+];
 
 var web3Properties = [
-    { name: 'version.client', getter: 'web3_clientVersion' },
-    { name: 'version.network', getter: 'net_version' }
+    new Property({
+        name: 'version.client',
+        getter: 'web3_clientVersion'
+    }),
+    new Property({
+        name: 'version.network',
+        getter: 'net_version',
+        inputFormatter: utils.toDecimal
+    }),
+    new Property({
+        name: 'version.ethereum',
+        getter: 'eth_version',
+        inputFormatter: utils.toDecimal
+    }),
+    new Property({
+        name: 'version.whisper',
+        getter: 'shh_version',
+        inputFormatter: utils.toDecimal
+    })
 ];
 
 /// creates methods in a given object based on method description on input
 /// setups api calls for these methods
 var setupMethods = function (obj, methods) {
     methods.forEach(function (method) {
-        var func = function () {
-            var args = Array.prototype.slice.call(arguments);
-            var call = method.getCall(args); 
-            var callback = method.extractCallback(args);
-            method.validateArgs(args);
-            
-            var payload = {
-                method: call,
-                params: method.formatInput(args)
-            };
-
-            if (callback) {
-                return web3.manager.sendAsync(payload, function (err, result) {
-                    callback(null, method.formatOutput(result));
-                });
-            }
-
-            return method.formatOutput(web3.manager.send(payload));
-        };
-        method.attachToObject(obj, func);
+        method.attachToObject(obj);
     });
 };
 
@@ -1170,170 +1171,53 @@ var setupMethods = function (obj, methods) {
 /// setups api calls for these properties
 var setupProperties = function (obj, properties) {
     properties.forEach(function (property) {
-        var objectProperties = property.name.split('.'),
-            proto = {};
-
-        proto.get = function () {
-
-            // show deprecated warning
-            //checkIfDeprecated(property);
-
-            return web3.manager.send({
-                method: property.getter,
-                outputFormatter: property.outputFormatter
-            });
-        };
-
-        if (property.setter) {
-            proto.set = function (val) {
-
-                // show deprecated warning
-                //checkIfDeprecated(property);
-
-                return web3.manager.send({
-                    method: property.setter,
-                    params: [val],
-                    inputFormatter: property.inputFormatter
-                });
-            };
-        }
-
-        proto.enumerable = !property.newProperty;
-
-        if(objectProperties.length > 1) {
-            if(!obj[objectProperties[0]])
-                obj[objectProperties[0]] = {};
-
-            Object.defineProperty(obj[objectProperties[0]], objectProperties[1], proto);        
-        } else
-            Object.defineProperty(obj, property.name, proto);
-
+        property.attachToObject(obj);
     });
 };
 
+/// setups web3 object, and it's in-browser executed methods
+var web3 = {};
+web3.providers = {};
+web3.version = {};
+web3.version.api = version.version;
+web3.eth = {};
+
 /*jshint maxparams:4 */
-var startPolling = function (method, id, callback, uninstall) {
-    web3.manager.startPolling({
-        method: method, 
-        params: [id]
-    }, id,  callback, uninstall); 
+web3.eth.filter = function (fil, eventParams, options, formatter) {
+
+    // if its event, treat it differently
+    // TODO: simplify and remove
+    if (fil._isEvent) {
+        return fil(eventParams, options);
+    }
+
+    // what outputLogFormatter? that's wrong
+    //return new Filter(fil, watches.eth(), formatters.outputLogFormatter);
+    return new Filter(fil, watches.eth(), formatter || formatters.outputLogFormatter);
 };
 /*jshint maxparams:3 */
 
-var stopPolling = function (id) {
-    web3.manager.stopPolling(id);
+web3.shh = {};
+web3.shh.filter = function (fil) {
+    return new Filter(fil, watches.shh(), formatters.outputPostFormatter);
 };
-
-var ethWatch = {
-    startPolling: startPolling.bind(null, 'eth_getFilterChanges'), 
-    stopPolling: stopPolling
+web3.net = {};
+web3.db = {};
+web3.setProvider = function (provider) {
+    RequestManager.getInstance().setProvider(provider);
 };
-
-var shhWatch = {
-    startPolling: startPolling.bind(null, 'shh_getFilterChanges'), 
-    stopPolling: stopPolling
+web3.reset = function () {
+    RequestManager.getInstance().reset();
 };
-
-/// setups web3 object, and it's in-browser executed methods
-var web3 = {
-
-    version: {
-        api: version.version
-    },
-
-    manager: new RequestManager(),
-    providers: {},
-
-    setProvider: function (provider) {
-        web3.manager.setProvider(provider);
-    },
-    
-    /// Should be called to reset state of web3 object
-    /// Resets everything except manager
-    reset: function () {
-        web3.manager.reset(); 
-    },
-
-    /// @returns hex string of the input
-    toHex: utils.toHex,
-
-    /// @returns ascii string representation of hex value prefixed with 0x
-    toAscii: utils.toAscii,
-
-    /// @returns hex representation (prefixed by 0x) of ascii string
-    fromAscii: utils.fromAscii,
-
-    /// @returns decimal representaton of hex value prefixed by 0x
-    toDecimal: utils.toDecimal,
-
-    /// @returns hex representation (prefixed by 0x) of decimal value
-    fromDecimal: utils.fromDecimal,
-
-    /// @returns a BigNumber object
-    toBigNumber: utils.toBigNumber,
-
-    toWei: utils.toWei,
-    fromWei: utils.fromWei,
-    isAddress: utils.isAddress,
-
-    // provide network information
-    net: {
-        // peerCount: 
-    },
-
-
-    /// eth object prototype
-    eth: {
-        // DEPRECATED
-        contractFromAbi: function (abi) {
-            console.warn('Initiating a contract like this is deprecated please use var MyContract = eth.contract(abi); new MyContract(address); instead.');
-
-            return function(addr) {
-                // Default to address of Config. TODO: rremove prior to genesis.
-                addr = addr || '0xc6d9d2cd449a754c494264e1809c50e34d64562b';
-                var ret = web3.eth.contract(addr, abi);
-                ret.address = addr;
-                return ret;
-            };
-        },
-
-        /// @param filter may be a string, object or event
-        /// @param eventParams is optional, this is an object with optional event eventParams params
-        /// @param options is optional, this is an object with optional event options ('max'...)
-        /*jshint maxparams:4 */
-        filter: function (fil, eventParams, options) {
-
-            // if its event, treat it differently
-            if (fil._isEvent)
-                return fil(eventParams, options);
-
-            return filter(fil, ethWatch, formatters.outputLogFormatter);
-        },
-        // DEPRECATED
-        watch: function (fil, eventParams, options) {
-            console.warn('eth.watch() is deprecated please use eth.filter() instead.');
-            return this.filter(fil, eventParams, options);
-        }
-        /*jshint maxparams:3 */
-    },
-
-    /// db object prototype
-    db: {},
-
-    /// shh object prototype
-    shh: {
-        /// @param filter may be a string, object or event
-        filter: function (fil) {
-            return filter(fil, shhWatch, formatters.outputPostFormatter);
-        },
-        // DEPRECATED
-        watch: function (fil) {
-            console.warn('shh.watch() is deprecated please use shh.filter() instead.');
-            return this.filter(fil);
-        }
-    }
-};
-
+web3.toHex = utils.toHex;
+web3.toAscii = utils.toAscii;
+web3.fromAscii = utils.fromAscii;
+web3.toDecimal = utils.toDecimal;
+web3.fromDecimal = utils.fromDecimal;
+web3.toBigNumber = utils.toBigNumber;
+web3.toWei = utils.toWei;
+web3.fromWei = utils.fromWei;
+web3.isAddress = utils.isAddress;
 
 // ADD defaultblock
 Object.defineProperty(web3.eth, 'defaultBlock', {
@@ -1348,7 +1232,7 @@ Object.defineProperty(web3.eth, 'defaultBlock', {
 
 
 /// setups all api methods
-setupMethods(web3, web3Methods());
+setupMethods(web3, web3Methods);
 setupProperties(web3, web3Properties);
 setupMethods(web3.net, net.methods);
 setupProperties(web3.net, net.properties);
@@ -1356,13 +1240,11 @@ setupMethods(web3.eth, eth.methods);
 setupProperties(web3.eth, eth.properties);
 setupMethods(web3.db, db.methods);
 setupMethods(web3.shh, shh.methods);
-setupMethods(ethWatch, watches.eth());
-setupMethods(shhWatch, watches.shh());
 
 module.exports = web3;
 
 
-},{"./solidity/formatters":2,"./utils/config":5,"./utils/utils":6,"./version.json":7,"./web3/db":10,"./web3/eth":12,"./web3/filter":14,"./web3/method":18,"./web3/net":19,"./web3/requestmanager":21,"./web3/shh":22,"./web3/watches":24}],9:[function(require,module,exports){
+},{"./utils/config":5,"./utils/utils":6,"./version.json":7,"./web3/db":10,"./web3/eth":12,"./web3/filter":14,"./web3/formatters":15,"./web3/method":18,"./web3/net":19,"./web3/property":20,"./web3/requestmanager":22,"./web3/shh":23,"./web3/watches":25}],9:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -1390,15 +1272,6 @@ var abi = require('../solidity/abi');
 var utils = require('../utils/utils');
 var eventImpl = require('./event');
 var signature = require('./signature');
-
-var exportNatspecGlobals = function (vars) {
-    // it's used byt natspec.js
-    // TODO: figure out better way to solve this
-    web3._currentContractAbi = vars.abi;
-    web3._currentContractAddress = vars.address;
-    web3._currentContractMethodName = vars.method;
-    web3._currentContractMethodParams = vars.params;
-};
 
 var addFunctionRelatedPropertiesToContract = function (contract) {
     
@@ -1461,13 +1334,6 @@ var addFunctionsToContract = function (contract, desc, address) {
 
             if (isTransaction) {
                 
-                exportNatspecGlobals({
-                    abi: desc,
-                    address: address,
-                    method: method.name,
-                    params: params
-                });
-
                 // transactions do not have any output, cause we do not know, when they will be processed
                 web3.eth.sendTransaction(options);
                 return;
@@ -1607,7 +1473,7 @@ function Contract(abi, address) {
 module.exports = contract;
 
 
-},{"../solidity/abi":1,"../utils/utils":6,"../web3":8,"./event":13,"./signature":23}],10:[function(require,module,exports){
+},{"../solidity/abi":1,"../utils/utils":6,"../web3":8,"./event":13,"./signature":24}],10:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -1638,16 +1504,17 @@ var putString = new Method({
     params: 3
 });
 
-var putHex = new Method({
-    name: 'putHex',
-    call: 'db_putHex',
-    params: 3
-});
 
 var getString = new Method({
     name: 'getString',
     call: 'db_getString',
     params: 2
+});
+
+var putHex = new Method({
+    name: 'putHex',
+    call: 'db_putHex',
+    params: 3
 });
 
 var getHex = new Method({
@@ -1657,7 +1524,7 @@ var getHex = new Method({
 });
 
 var methods = [
-    putString, putHex, getString, getHex
+    putString, getString, putHex, getHex
 ];
 
 module.exports = {
@@ -1687,14 +1554,24 @@ module.exports = {
  * @date 2015
  */
 
+var utils = require('../utils/utils');
+
 module.exports = {
-    InvalidNumberOfParams: new Error('invalid number of input params'),
-    InvalidProvider: new Error('invalid provider, it is not set or invalid'),
-    InvalidResponse: new Error('invalid jsonrpc response')
+    InvalidNumberOfParams: new Error('Invalid number of input parameters'),
+    InvalidProvider: new Error('Providor not set or invalid'),
+    InvalidResponse: function(result){
+        var message = 'Invalid JSON RPC response';
+
+        if(utils.isObject(result) && result.error && result.error.message) {
+            message = result.error.message;
+        }
+
+        return new Error(message);
+    }
 };
 
 
-},{}],12:[function(require,module,exports){
+},{"../utils/utils":6}],12:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -1732,10 +1609,11 @@ module.exports = {
  *      {
  *      name: 'getBlock',
  *      call: blockCall,
+ *      params: 2,
  *      outputFormatter: formatters.outputBlockFormatter,
  *      inputFormatter: [ // can be a formatter funciton or an array of functions. Where each item in the array will be used for one parameter
  *           utils.toHex, // formats paramter 1
- *           function(param){ if(!param) return false; } // formats paramter 2
+ *           function(param){ return !!param; } // formats paramter 2
  *         ]
  *       },
  *
@@ -1748,6 +1626,7 @@ module.exports = {
 var formatters = require('./formatters');
 var utils = require('../utils/utils');
 var Method = require('./method');
+var Property = require('./property');
 
 var blockCall = function (args) {
     return (utils.isString(args[0]) && args[0].indexOf('0x') === 0) ? "eth_getBlockByHash" : "eth_getBlockByNumber";
@@ -1775,35 +1654,39 @@ var getBalance = new Method({
     name: 'getBalance', 
     call: 'eth_getBalance', 
     params: 2,
-    outputFormatter: formatters.inputNumberFormatter
+    inputFormatter: [utils.toHex, formatters.inputDefaultBlockNumberFormatter],
+    outputFormatter: formatters.outputBigNumberFormatter
 });
 
 var getStorageAt = new Method({
     name: 'getStorageAt', 
     call: 'eth_getStorageAt', 
-    params: 3
+    params: 3,
+    inputFormatter: [null, utils.toHex, formatters.inputDefaultBlockNumberFormatter]
 });
 
 var getCode = new Method({
     name: 'getCode',
     call: 'eth_getCode',
-    params: 2
+    params: 2,
+    inputFormatter: [null, formatters.inputDefaultBlockNumberFormatter]
 });
 
 var getBlock = new Method({
     name: 'getBlock', 
     call: blockCall,
-    params: 1,
-    outputFormatter: formatters.outputBlockFormatter,
-    inputFormatter: formatters.inputBlockFormatter
+    params: 2,
+    inputFormatter: [utils.toHex, function (val) { return !!val; }],
+    outputFormatter: formatters.outputBlockFormatter
 });
 
 var getUncle = new Method({
     name: 'getUncle',
     call: uncleCall,
-    params: 1,
+    params: 3,
+    inputFormatter: [utils.toHex, utils.toHex, function (val) { return !!val; }],
     outputFormatter: formatters.outputBlockFormatter,
-    inputFormatter: formatters.inputUncleFormatter
+
 });
 
 var getCompilers = new Method({
@@ -1812,20 +1695,20 @@ var getCompilers = new Method({
     params: 0
 });
 
-var getBlockTransactounCount = new Method({
+var getBlockTransactionCount = new Method({
     name: 'getBlockTransactionCount',
     call: getBlockTransactionCountCall,
     params: 1,
-    outputFormatter: utils.toDecimal,
-    inputFormatter: utils.toHex 
+    inputFormatter: [utils.toHex],
+    outputFormatter: utils.toDecimal
 });
 
 var getBlockUncleCount = new Method({
     name: 'getBlockUncleCount',
     call: uncleCountCall,
     params: 1,
-    outputFormatter: utils.toDecimal,
-    inputFormatter: utils.toHex
+    inputFormatter: [utils.toHex],
+    outputFormatter: utils.toDecimal
 });
 
 var getTransaction = new Method({
@@ -1839,14 +1722,15 @@ var getTransactionFromBlock = new Method({
     name: 'getTransactionFromBlock',
     call: transactionFromBlockCall,
     params: 2,
-    outputFormatter: formatters.outputTransactionFormatter,
-    inputFormatter: utils.toHex // HERE!!!
+    inputFormatter: [utils.toHex, utils.toHex],
+    outputFormatter: formatters.outputTransactionFormatter
 });
 
 var getTransactionCount = new Method({
     name: 'getTransactionCount',
     call: 'eth_getTransactionCount',
     params: 2,
+    inputFormatter: [null, formatters.inputDefaultBlockNumberFormatter],
     outputFormatter: utils.toDecimal
 });
 
@@ -1854,14 +1738,14 @@ var sendTransaction = new Method({
     name: 'sendTransaction',
     call: 'eth_sendTransaction',
     params: 1,
-    inputFormatter: formatters.inputTransactionFormatter 
+    inputFormatter: [formatters.inputTransactionFormatter]
 });
 
 var call = new Method({
     name: 'call',
     call: 'eth_call',
     params: 2,
-    inputFormatter: formatters.inputCallFormatter
+    inputFormatter: [formatters.inputTransactionFormatter, formatters.inputDefaultBlockNumberFormatter]
 });
 
 var compileSolidity = new Method({
@@ -1873,15 +1757,13 @@ var compileSolidity = new Method({
 var compileLLL = new Method({
     name: 'compile.lll',
     call: 'eth_compileLLL',
-    params: 1,
-    inputFormatter: utils.toHex
+    params: 1
 });
 
 var compileSerpent = new Method({
     name: 'compile.serpent',
     call: 'eth_compileSerpent',
-    params: 1,
-    inputFormatter: utils.toHex
+    params: 1
 });
 
 var flush = new Method({
@@ -1897,7 +1779,7 @@ var methods = [
     getBlock,
     getUncle,
     getCompilers,
-    getBlockTransactounCount,
+    getBlockTransactionCount,
     getBlockUncleCount,
     getTransaction,
     getTransactionFromBlock,
@@ -1911,17 +1793,32 @@ var methods = [
 ];
 
 /// @returns an array of objects describing web3.eth api properties
-var properties = [
-    { name: 'coinbase', getter: 'eth_coinbase'},
-    { name: 'mining', getter: 'eth_mining'},
-    { name: 'gasPrice', getter: 'eth_gasPrice', outputFormatter: formatters.inputNumberFormatter},
-    { name: 'accounts', getter: 'eth_accounts' },
-    { name: 'blockNumber', getter: 'eth_blockNumber', outputFormatter: utils.toDecimal},
 
-    // deprecated properties
-    { name: 'listening', getter: 'net_listening', setter: 'eth_setListening', deprecated: 'net.listening'},
-    { name: 'peerCount', getter: 'net_peerCount', deprecated: 'net.peerCount'},
-    { name: 'number', getter: 'eth_number', deprecated: 'eth.blockNumber'}
+
+
+var properties = [
+    new Property({
+        name: 'coinbase',
+        getter: 'eth_coinbase'
+    }),
+    new Property({
+        name: 'mining',
+        getter: 'eth_mining'
+    }),
+    new Property({
+        name: 'gasPrice',
+        getter: 'eth_gasPrice',
+        outputFormatter: formatters.inputNumberFormatter
+    }),
+    new Property({
+        name: 'accounts',
+        getter: 'eth_accounts'
+    }),
+    new Property({
+        name: 'blockNumber',
+        getter: 'eth_blockNumber',
+        outputFormatter: utils.toDecimal
+    })
 ];
 
 module.exports = {
@@ -1930,7 +1827,7 @@ module.exports = {
 };
 
 
-},{"../utils/utils":6,"./formatters":15,"./method":18}],13:[function(require,module,exports){
+},{"../utils/utils":6,"./formatters":15,"./method":18,"./property":20}],13:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -1990,7 +1887,7 @@ var indexedParamsToTopics = function (event, indexed) {
                 return abi.formatInput(inputs, [v]);
             }); 
         }
-        return abi.formatInput(inputs, [value]);
+        return '0x' + abi.formatInput(inputs, [value]);
     });
 };
 
@@ -2034,10 +1931,10 @@ var outputParser = function (event) {
             args: {}
         };
 
-        output.topics = output.topic; // fallback for go-ethereum
         if (!output.topics) {
             return result;
         }
+        output.data = output.data || '';
        
         var indexedOutputs = filterInputs(event.inputs, true);
         var indexedData = "0x" + output.topics.slice(1, output.topics.length).map(function (topics) { return topics.slice(2); }).join("");
@@ -2070,7 +1967,7 @@ module.exports = {
 };
 
 
-},{"../solidity/abi":1,"../utils/utils":6,"./signature":23}],14:[function(require,module,exports){
+},{"../solidity/abi":1,"../utils/utils":6,"./signature":24}],14:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2097,158 +1994,101 @@ module.exports = {
  * @date 2014
  */
 
+var RequestManager = require('./requestmanager');
 var utils = require('../utils/utils');
-
-/// Should be called to check if filter implementation is valid
-/// @returns true if it is, otherwise false
-var implementationIsValid = function (i) {
-    return !!i && 
-        typeof i.newFilter === 'function' && 
-        typeof i.getLogs === 'function' && 
-        typeof i.uninstallFilter === 'function' &&
-        typeof i.startPolling === 'function' &&
-        typeof i.stopPolling === 'function';
-};
 
 /// This method should be called on options object, to verify deprecated properties && lazy load dynamic ones
 /// @param should be string or object
 /// @returns options string or object
 var getOptions = function (options) {
-    /*jshint maxcomplexity:9 */
 
-    if (typeof options === 'string') {
+    if (utils.isString(options)) {
         return options;
     } 
 
     options = options || {};
 
-    if (options.topic) {
-        console.warn('"topic" is deprecated, is "topics" instead');
-        options.topics = options.topic;
-    }
-
-    if (options.earliest) {
-        console.warn('"earliest" is deprecated, is "fromBlock" instead');
-        options.fromBlock = options.earliest;
-    }
-
-    if (options.latest) {
-        console.warn('"latest" is deprecated, is "toBlock" instead');
-        options.toBlock = options.latest;
-    }
-
-    if (options.skip) {
-        console.warn('"skip" is deprecated, is "offset" instead');
-        options.offset = options.skip;
-    }
-
-    if (options.max) {
-        console.warn('"max" is deprecated, is "limit" instead');
-        options.limit = options.max;
-    }
-
     // make sure topics, get converted to hex
-    if(options.topics instanceof Array) {
-        options.topics = options.topics.map(function(topic){
-            return utils.toHex(topic);
-        });
-    }
+    options.topics = options.topics || [];
+    options.topics = options.topics.map(function(topic){
+        return utils.toHex(topic);
+    });
 
+    var asBlockNumber = function (n) {
+        if (typeof n === 'undefined') {
+            return undefined;
+        }
+        if (n === 'latest' || n === 'pending') {
+           return n; 
+        }
+        return utils.toHex(n);
+    };
 
-    // evaluate lazy properties
+    // lazy load
     return {
-        fromBlock: utils.toHex(options.fromBlock),
-        toBlock: utils.toHex(options.toBlock),
-        limit: utils.toHex(options.limit),
-        offset: utils.toHex(options.offset),
+        topics: options.topics,
         to: options.to,
         address: options.address,
-        topics: options.topics
-    };
+        fromBlock: asBlockNumber(options.fromBlock),
+        toBlock: asBlockNumber(options.toBlock) 
+    }; 
 };
 
-/// Should be used when we want to watch something
-/// it's using inner polling mechanism and is notified about changes
-/// @param options are filter options
-/// @param implementation, an abstract polling implementation
-/// @param formatter (optional), callback function which formats output before 'real' callback 
-var filter = function(options, implementation, formatter) {
-    if (!implementationIsValid(implementation)) {
-        console.error('filter implemenation is invalid');
-        return;
-    }
+var Filter = function (options, methods, formatter) {
+    var implementation = {};
+    methods.forEach(function (method) {
+        method.attachToObject(implementation);
+    });
+    this.options = getOptions(options);
+    this.implementation = implementation;
+    this.callbacks = [];
+    this.formatter = formatter;
+    this.filterId = this.implementation.newFilter(this.options);
+};
 
-    options = getOptions(options);
-    var callbacks = [];
-    var filterId = implementation.newFilter(options);
+Filter.prototype.watch = function (callback) {
+    this.callbacks.push(callback);
+    var self = this;
 
-    // call the callbacks
-    var onMessages = function (messages) {
+    var onMessage = function (error, messages) {
+        if (error) {
+            return self.callbacks.forEach(function (callback) {
+                callback(error);
+            });
+        }
+
         messages.forEach(function (message) {
-            message = formatter ? formatter(message) : message;
-            callbacks.forEach(function (callback) {
-                callback(message);
+            message = self.formatter ? self.formatter(message) : message;
+            self.callbacks.forEach(function (callback) {
+                callback(null, message);
             });
         });
     };
 
-    implementation.startPolling(filterId, onMessages, implementation.uninstallFilter);
-
-    var watch = function(callback) {
-        callbacks.push(callback);
-    };
-
-    var stopWatching = function() {
-        implementation.stopPolling(filterId);
-        implementation.uninstallFilter(filterId);
-        callbacks = [];
-    };
-
-    var get = function () {
-        var results = implementation.getLogs(filterId);
-
-        return utils.isArray(results) ? results.map(function(message){
-                return formatter ? formatter(message) : message;
-            }) : results;
-    };
-    
-    return {
-        watch: watch,
-        stopWatching: stopWatching,
-        get: get,
-
-        // DEPRECATED methods
-        changed:  function(){
-            console.warn('watch().changed() is deprecated please use filter().watch() instead.');
-            return watch.apply(this, arguments);
-        },
-        arrived:  function(){
-            console.warn('watch().arrived() is deprecated please use filter().watch() instead.');
-            return watch.apply(this, arguments);
-        },
-        happened:  function(){
-            console.warn('watch().happened() is deprecated please use filter().watch() instead.');
-            return watch.apply(this, arguments);
-        },
-        uninstall: function(){
-            console.warn('watch().uninstall() is deprecated please use filter().stopWatching() instead.');
-            return stopWatching.apply(this, arguments);
-        },
-        messages: function(){
-            console.warn('watch().messages() is deprecated please use filter().get() instead.');
-            return get.apply(this, arguments);
-        },
-        logs: function(){
-            console.warn('watch().logs() is deprecated please use filter().get() instead.');
-            return get.apply(this, arguments);
-        }
-    };
+    RequestManager.getInstance().startPolling({
+        method: this.implementation.poll.call,
+        params: [this.filterId],
+    }, this.filterId, onMessage, this.stopWatching.bind(this));
 };
 
-module.exports = filter;
+Filter.prototype.stopWatching = function () {
+    RequestManager.getInstance().stopPolling(this.filterId);
+    this.implementation.uninstallFilter(this.filterId);
+    this.callbacks = [];
+};
+
+Filter.prototype.get = function () {
+    var logs = this.implementation.getLogs(this.filterId);
+    var self = this;
+    return logs.map(function (log) {
+        return self.formatter ? self.formatter(log) : log;
+    });
+};
+
+module.exports = Filter;
 
 
-},{"../utils/utils":6}],15:[function(require,module,exports){
+},{"../utils/utils":6,"./requestmanager":22}],15:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2273,17 +2113,26 @@ module.exports = filter;
  */
 
 var utils = require('../utils/utils');
+var config = require('../utils/config');
 
 /**
- * Should the input to a big number
+ * Should the format output to a big number
  *
- * @method inputNumberFormatter
+ * @method outputBigNumberFormatter
  * @param {String|Number|BigNumber}
  * @returns {BigNumber} object
  */
-var inputNumberFormatter = function (args) {
-    args[0] = utils.toBigNumber(args[0]);
-    return args;
+var outputBigNumberFormatter = function (number) {
+    return utils.toBigNumber(number);
+};
+
+var inputDefaultBlockNumberFormatter = function (blockNumber) {
+    if (blockNumber === undefined) {
+        return config.ETH_DEFAULTBLOCK;
+    } else if (blockNumber === 'latest' || blockNumber === 'pending') {
+        return blockNumber;
+    }
+    return utils.toHex(blockNumber);
 };
 
 /**
@@ -2293,8 +2142,7 @@ var inputNumberFormatter = function (args) {
  * @param {Object} transaction options
  * @returns object
 */
-var inputTransactionFormatter = function (args){
-    var options = args[0];
+var inputTransactionFormatter = function (options){
 
     // make code -> data
     if (options.code) {
@@ -2306,7 +2154,7 @@ var inputTransactionFormatter = function (args){
         options[key] = utils.fromDecimal(options[key]);
     });
 
-    return args;
+    return options; 
 };
 
 /**
@@ -2317,42 +2165,12 @@ var inputTransactionFormatter = function (args){
  * @returns {Object} transaction
 */
 var outputTransactionFormatter = function (tx){
+    tx.blockNumber = utils.toDecimal(tx.blockNumber);
+    tx.transactionIndex = utils.toDecimal(tx.transactionIndex);
     tx.gas = utils.toDecimal(tx.gas);
     tx.gasPrice = utils.toBigNumber(tx.gasPrice);
     tx.value = utils.toBigNumber(tx.value);
     return tx;
-};
-
-/**
- * Formats the input of a call and converts all values to HEX
- *
- * @method inputCallFormatter
- * @param {Object} transaction options
- * @returns object
-*/
-var inputCallFormatter = function (args){
-    var options = args[0];
-
-    // make code -> data
-    if (options.code) {
-        options.data = options.code;
-        delete options.code;
-    }
-
-    return args;
-};
-
-var inputBlockFormatter = function (args) {
-    args[0] = utils.toHex(args[0]);
-    args[1] = !!args[1];
-    return args;
-};
-
-var inputUncleFormatter = function (args) {
-    args[0] = utils.toHex(args[0]);
-    args[1] = utils.toHex(args[1]);
-    args[2] = !!args[2];
-    return args;
 };
 
 /**
@@ -2375,7 +2193,7 @@ var outputBlockFormatter = function(block) {
     block.difficulty = utils.toBigNumber(block.difficulty);
     block.totalDifficulty = utils.toBigNumber(block.totalDifficulty);
 
-    if(block.transactions instanceof Array) {
+    if (utils.isArray(block.transactions)) {
         block.transactions.forEach(function(item){
             if(!utils.isString(item))
                 return outputTransactionFormatter(item);
@@ -2392,14 +2210,17 @@ var outputBlockFormatter = function(block) {
  * @param {Object} log object
  * @returns {Object} log
 */
-var outputLogFormatter = function(log){
+var outputLogFormatter = function(log) {
+    if (log === null) { // 'pending' && 'latest' filters are nulls
+        return null;
+    }
+
     log.blockNumber = utils.toDecimal(log.blockNumber);
     log.transactionIndex = utils.toDecimal(log.transactionIndex);
     log.logIndex = utils.toDecimal(log.logIndex);
 
     return log;
 };
-
 
 /**
  * Formats the input of a whisper post and converts all values to HEX
@@ -2408,23 +2229,22 @@ var outputLogFormatter = function(log){
  * @param {Object} transaction object
  * @returns {Object}
 */
-var inputPostFormatter = function(args){
-    var post = args[0];
+var inputPostFormatter = function(post) {
 
     post.payload = utils.toHex(post.payload);
     post.ttl = utils.fromDecimal(post.ttl);
     post.priority = utils.fromDecimal(post.priority);
 
-    if(!(post.topics instanceof Array))
+    if(!utils.isArray(post.topics)) {
         post.topics = [post.topics];
-
+    }
 
     // format the following options
     post.topics = post.topics.map(function(topic){
         return utils.fromAscii(topic);
     });
 
-    return args;
+    return post; 
 };
 
 /**
@@ -2443,10 +2263,8 @@ var outputPostFormatter = function(post){
     post.payloadRaw = post.payload;
     post.payload = utils.toAscii(post.payload);
 
-    if(post.payload.indexOf('{') === 0 || post.payload.indexOf('[') === 0) {
-        try {
-            post.payload = JSON.parse(post.payload);
-        } catch (e) { }
+    if (utils.isJson(post.payload)) {
+        post.payload = JSON.parse(post.payload);
     }
 
     // format the following options
@@ -2458,12 +2276,10 @@ var outputPostFormatter = function(post){
 };
 
 module.exports = {
-    inputNumberFormatter: inputNumberFormatter,
+    inputDefaultBlockNumberFormatter: inputDefaultBlockNumberFormatter,
     inputTransactionFormatter: inputTransactionFormatter,
-    inputCallFormatter: inputCallFormatter,
     inputPostFormatter: inputPostFormatter,
-    inputBlockFormatter: inputBlockFormatter,
-    inputUncleFormatter: inputUncleFormatter,
+    outputBigNumberFormatter: outputBigNumberFormatter,
     outputTransactionFormatter: outputTransactionFormatter,
     outputBlockFormatter: outputBlockFormatter,
     outputLogFormatter: outputLogFormatter,
@@ -2471,7 +2287,7 @@ module.exports = {
 };
 
 
-},{"../utils/utils":6}],16:[function(require,module,exports){
+},{"../utils/config":5,"../utils/utils":6}],16:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2558,7 +2374,21 @@ module.exports = HttpProvider;
  */
 
 var Jsonrpc = function () {
+    // singleton pattern
+    if (arguments.callee._singletonInstance) {
+        return arguments.callee._singletonInstance;
+    }
+    arguments.callee._singletonInstance = this;
+
     this.messageId = 1;
+};
+
+/**
+ * @return {Jsonrpc} singleton
+ */
+Jsonrpc.getInstance = function () {
+    var instance = new Jsonrpc();
+    return instance;
 };
 
 /**
@@ -2578,7 +2408,7 @@ Jsonrpc.prototype.toPayload = function (method, params) {
         method: method,
         params: params || [],
         id: this.messageId++
-    }; 
+    };
 };
 
 /**
@@ -2586,7 +2416,7 @@ Jsonrpc.prototype.toPayload = function (method, params) {
  *
  * @method isValidResponse
  * @param {Object}
- * @returns {Boolean} true if response is valid, otherwise false 
+ * @returns {Boolean} true if response is valid, otherwise false
  */
 Jsonrpc.prototype.isValidResponse = function (response) {
     return !!response &&
@@ -2607,7 +2437,7 @@ Jsonrpc.prototype.toBatchPayload = function (messages) {
     var self = this;
     return messages.map(function (message) {
         return self.toPayload(message.method, message.params);
-    }); 
+    });
 };
 
 module.exports = Jsonrpc;
@@ -2636,6 +2466,7 @@ module.exports = Jsonrpc;
  * @date 2015
  */
 
+var RequestManager = require('./requestmanager');
 var utils = require('../utils/utils');
 var errors = require('./errors');
 
@@ -2693,7 +2524,13 @@ Method.prototype.validateArgs = function (args) {
  * @return {Array}
  */
 Method.prototype.formatInput = function (args) {
-    return this.inputFormatter ? this.inputFormatter(args) : args;
+    if (!this.inputFormatter) {
+        return args;
+    }
+
+    return this.inputFormatter.map(function (formatter, index) {
+        return formatter ? formatter(args[index]) : args[index];
+    });
 };
 
 /**
@@ -2704,7 +2541,7 @@ Method.prototype.formatInput = function (args) {
  * @return {Object}
  */
 Method.prototype.formatOutput = function (result) {
-    return this.outputFormatter && !!result ? this.outputFormatter(result) : result;
+    return this.outputFormatter && result !== null ? this.outputFormatter(result) : result;
 };
 
 /**
@@ -2714,7 +2551,9 @@ Method.prototype.formatOutput = function (result) {
  * @param {Object}
  * @param {Function}
  */
-Method.prototype.attachToObject = function (obj, func) {
+Method.prototype.attachToObject = function (obj) {
+    var func = this.send.bind(this);
+    func.call = this.call; // that's ugly. filter.js uses it
     var name = this.name.split('.');
     if (name.length > 1) {
         obj[name[0]] = obj[name[0]] || {};
@@ -2724,10 +2563,48 @@ Method.prototype.attachToObject = function (obj, func) {
     }
 };
 
+/**
+ * Should create payload from given input args
+ *
+ * @method toPayload
+ * @param {Array} args
+ * @return {Object}
+ */
+Method.prototype.toPayload = function (args) {
+    var call = this.getCall(args);
+    var callback = this.extractCallback(args);
+    var params = this.formatInput(args);
+    this.validateArgs(params);
+
+    return {
+        method: call,
+        params: params,
+        callback: callback
+    };
+};
+
+/**
+ * Should send request to the API
+ *
+ * @method send
+ * @param list of params
+ * @return result
+ */
+Method.prototype.send = function () {
+    var payload = this.toPayload(Array.prototype.slice.call(arguments));
+    if (payload.callback) {
+        var self = this;
+        return RequestManager.getInstance().sendAsync(payload, function (err, result) {
+            payload.callback(null, self.formatOutput(result));
+        });
+    }
+    return this.formatOutput(RequestManager.getInstance().send(payload));
+};
+
 module.exports = Method;
 
 
-},{"../utils/utils":6,"./errors":11}],19:[function(require,module,exports){
+},{"../utils/utils":6,"./errors":11,"./requestmanager":22}],19:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2751,16 +2628,23 @@ module.exports = Method;
  */
 
 var utils = require('../utils/utils');
+var Property = require('./property');
 
 /// @returns an array of objects describing web3.eth api methods
 var methods = [
-    // { name: 'getBalance', call: 'eth_balanceAt', outputFormatter: formatters.convertToBigNumber},
 ];
 
 /// @returns an array of objects describing web3.eth api properties
 var properties = [
-    { name: 'listening', getter: 'net_listening'},
-    { name: 'peerCount', getter: 'net_peerCount', outputFormatter: utils.toDecimal },
+    new Property({
+        name: 'listening',
+        getter: 'net_listening'
+    }),
+    new Property({
+        name: 'peerCount',
+        getter: 'net_peerCount',
+        outputFormatter: utils.toDecimal
+    })
 ];
 
 
@@ -2770,7 +2654,113 @@ module.exports = {
 };
 
 
-},{"../utils/utils":6}],20:[function(require,module,exports){
+},{"../utils/utils":6,"./property":20}],20:[function(require,module,exports){
+/*
+    This file is part of ethereum.js.
+
+    ethereum.js is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    ethereum.js is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with ethereum.js.  If not, see <http://www.gnu.org/licenses/>.
+*/
+/**
+ * @file property.js
+ * @author Fabian Vogelsteller <fabian@frozeman.de>
+ * @author Marek Kotewicz <marek@ethdev.com>
+ * @date 2015
+ */
+
+var RequestManager = require('./requestmanager');
+
+var Property = function (options) {
+    this.name = options.name;
+    this.getter = options.getter;
+    this.setter = options.setter;
+    this.outputFormatter = options.outputFormatter;
+    this.inputFormatter = options.inputFormatter;
+};
+
+/**
+ * Should be called to format input args of method
+ * 
+ * @method formatInput
+ * @param {Array}
+ * @return {Array}
+ */
+Property.prototype.formatInput = function (arg) {
+    return this.inputFormatter ? this.inputFormatter(arg) : arg;
+};
+
+/**
+ * Should be called to format output(result) of method
+ *
+ * @method formatOutput
+ * @param {Object}
+ * @return {Object}
+ */
+Property.prototype.formatOutput = function (result) {
+    return this.outputFormatter && result !== null ? this.outputFormatter(result) : result;
+};
+
+/**
+ * Should attach function to method
+ * 
+ * @method attachToObject
+ * @param {Object}
+ * @param {Function}
+ */
+Property.prototype.attachToObject = function (obj) {
+    var proto = {
+        get: this.get.bind(this),
+        set: this.set.bind(this)
+    };
+
+    var name = this.name.split('.');
+    if (name.length > 1) {
+        obj[name[0]] = obj[name[0]] || {};
+        Object.defineProperty(obj[name[0]], name[1], proto); 
+    } else {
+        Object.defineProperty(obj, name[0], proto);
+    }
+};
+
+/**
+ * Should be used to get value of the property
+ *
+ * @method get
+ * @return {Object} value of the property
+ */
+Property.prototype.get = function () {
+    return this.formatOutput(RequestManager.getInstance().send({
+        method: this.getter
+    }));
+};
+
+/**
+ * Should be used to set value of the property
+ *
+ * @method set
+ * @param {Object} new value of the property
+ */
+Property.prototype.set = function (value) {
+    return RequestManager.getInstance().send({
+        method: this.setter,
+        params: [this.formatInput(value)]
+    });
+};
+
+module.exports = Property;
+
+
+},{"./requestmanager":22}],21:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2805,7 +2795,7 @@ QtSyncProvider.prototype.send = function (payload) {
 module.exports = QtSyncProvider;
 
 
-},{}],21:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -2841,13 +2831,27 @@ var errors = require('./errors');
  * It's responsible for passing messages to providers
  * It's also responsible for polling the ethereum node for incoming messages
  * Default poll timeout is 1 second
+ * Singleton
  */
-var RequestManager = function(provider) {
-    this.jsonrpc = new Jsonrpc();
+var RequestManager = function (provider) {
+    // singleton pattern
+    if (arguments.callee._singletonInstance) {
+        return arguments.callee._singletonInstance;
+    }
+    arguments.callee._singletonInstance = this;
+
     this.provider = provider;
     this.polls = [];
     this.timeout = null;
     this.poll();
+};
+
+/**
+ * @return {RequestManager} singleton
+ */
+RequestManager.getInstance = function () {
+    var instance = new RequestManager();
+    return instance;
 };
 
 /**
@@ -2863,11 +2867,11 @@ RequestManager.prototype.send = function (data) {
         return null;
     }
 
-    var payload = this.jsonrpc.toPayload(data.method, data.params);
+    var payload = Jsonrpc.getInstance().toPayload(data.method, data.params);
     var result = this.provider.send(payload);
 
-    if (!this.jsonrpc.isValidResponse(result)) {
-        throw errors.InvalidResponse;
+    if (!Jsonrpc.getInstance().isValidResponse(result)) {
+        throw errors.InvalidResponse(result);
     }
 
     return result.result;
@@ -2885,15 +2889,14 @@ RequestManager.prototype.sendAsync = function (data, callback) {
         return callback(errors.InvalidProvider);
     }
 
-    var payload = this.jsonrpc.toPayload(data.method, data.params);
-    var self = this;
+    var payload = Jsonrpc.getInstance().toPayload(data.method, data.params);
     this.provider.sendAsync(payload, function (err, result) {
         if (err) {
             return callback(err);
         }
         
-        if (!self.jsonrpc.isValidResponse(result)) {
-            return callback(errors.InvalidResponse);
+        if (!Jsonrpc.getInstance().isValidResponse(result)) {
+            return callback(errors.InvalidResponse(result));
         }
 
         callback(null, result.result);
@@ -2969,12 +2972,16 @@ RequestManager.prototype.reset = function () {
 RequestManager.prototype.poll = function () {
     this.timeout = setTimeout(this.poll.bind(this), c.ETH_POLLING_TIMEOUT);
 
+    if (!this.polls.length) {
+        return;
+    }
+
     if (!this.provider) {
         console.error(errors.InvalidProvider);
         return;
     }
 
-    var payload = this.jsonrpc.toBatchPayload(this.polls.map(function (data) {
+    var payload = Jsonrpc.getInstance().toBatchPayload(this.polls.map(function (data) {
         return data.data;
     }));
 
@@ -2986,22 +2993,22 @@ RequestManager.prototype.poll = function () {
         }
             
         if (!utils.isArray(results)) {
-            return console.error(errors.InvalidResponse);
+            throw errors.InvalidResponse(results);
         }
 
         results.map(function (result, index) {
             result.callback = self.polls[index].callback;
             return result;
         }).filter(function (result) {
-            var valid = self.jsonrpc.isValidResponse(result);
+            var valid = Jsonrpc.getInstance().isValidResponse(result);
             if (!valid) {
-                result.callback(errors.InvalidResponse);
+                result.callback(errors.InvalidResponse(result));
             }
             return valid;
         }).filter(function (result) {
             return utils.isArray(result.result) && result.result.length > 0;
         }).forEach(function (result) {
-            result.callback(null, result);
+            result.callback(null, result.result);
         });
     });
 };
@@ -3009,7 +3016,7 @@ RequestManager.prototype.poll = function () {
 module.exports = RequestManager;
 
 
-},{"../utils/config":5,"../utils/utils":6,"./errors":11,"./jsonrpc":17}],22:[function(require,module,exports){
+},{"../utils/config":5,"../utils/utils":6,"./errors":11,"./jsonrpc":17}],23:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -3079,7 +3086,7 @@ module.exports = {
 };
 
 
-},{"./formatters":15,"./method":18}],23:[function(require,module,exports){
+},{"./formatters":15,"./method":18}],24:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -3123,7 +3130,7 @@ module.exports = {
 };
 
 
-},{"../utils/config":5,"../web3":8}],24:[function(require,module,exports){
+},{"../utils/config":5,"../web3":8}],25:[function(require,module,exports){
 /*
     This file is part of ethereum.js.
 
@@ -3172,10 +3179,17 @@ var eth = function () {
         params: 1
     });
 
+    var poll = new Method({
+        name: 'poll',
+        call: 'eth_getFilterChanges',
+        params: 1
+    });
+
     return [
         newFilter,
         uninstallFilter,
-        getLogs
+        getLogs,
+        poll
     ];
 };
 
@@ -3199,10 +3213,17 @@ var shh = function () {
         params: 1
     });
 
+    var poll = new Method({
+        name: 'poll',
+        call: 'shh_getFilterChanges',
+        params: 1
+    });
+
     return [
         newFilter,
         uninstallFilter,
-        getLogs
+        getLogs,
+        poll
     ];
 };
 
@@ -3212,7 +3233,7 @@ module.exports = {
 };
 
 
-},{"./method":18}],25:[function(require,module,exports){
+},{"./method":18}],26:[function(require,module,exports){
 
 },{}],"bignumber.js":[function(require,module,exports){
 /*! bignumber.js v2.0.3 https://github.com/MikeMcl/bignumber.js/LICENCE */
@@ -5885,7 +5906,7 @@ module.exports = {
     }
 })(this);
 
-},{"crypto":25}],"ethereum.js":[function(require,module,exports){
+},{"crypto":26}],"ethereum.js":[function(require,module,exports){
 var web3 = require('./lib/web3');
 web3.providers.HttpProvider = require('./lib/web3/httpprovider');
 web3.providers.QtSyncProvider = require('./lib/web3/qtsync');
@@ -5894,7 +5915,7 @@ web3.abi = require('./lib/solidity/abi');
 
 module.exports = web3;
 
-},{"./lib/solidity/abi":1,"./lib/web3":8,"./lib/web3/contract":9,"./lib/web3/httpprovider":16,"./lib/web3/qtsync":20}]},{},["ethereum.js"])
+},{"./lib/solidity/abi":1,"./lib/web3":8,"./lib/web3/contract":9,"./lib/web3/httpprovider":16,"./lib/web3/qtsync":21}]},{},["ethereum.js"])
 
 
 //# sourceMappingURL=ethereum.js.map

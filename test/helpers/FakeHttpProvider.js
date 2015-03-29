@@ -1,6 +1,6 @@
 var chai = require('chai');
 var assert = require('assert');
-var utils = require('../lib/utils/utils');
+var utils = require('../../lib/utils/utils');
 
 var getResponseStub = function () {
     return {
@@ -23,7 +23,8 @@ FakeHttpProvider.prototype.send = function (payload) {
         throw this.error;
     } 
     if (this.validation) {
-        this.validation(payload);
+        // imitate plain json object
+        this.validation(JSON.parse(JSON.stringify(payload)));
     }
     return this.response;
 };
@@ -32,7 +33,8 @@ FakeHttpProvider.prototype.sendAsync = function (payload, callback) {
     assert.equal(utils.isArray(payload) || utils.isObject(payload), true);
     assert.equal(utils.isFunction(callback), true);
     if (this.validation) {
-        this.validation(payload, callback);
+        // imitate plain json object
+        this.validation(JSON.parse(JSON.stringify(payload)), callback);
     }
     callback(this.error, this.response);
 };
@@ -44,6 +46,14 @@ FakeHttpProvider.prototype.injectResponse = function (response) {
 FakeHttpProvider.prototype.injectResult = function (result) {
     this.response = getResponseStub();
     this.response.result = result;
+};
+
+FakeHttpProvider.prototype.injectBatchResults = function (results) {
+    this.response = results.map(function (r) {
+        var response = getResponseStub();
+        response.result = r;
+        return response;
+    }); 
 };
 
 FakeHttpProvider.prototype.injectError = function (error) {
